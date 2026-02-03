@@ -1,0 +1,98 @@
+name: build pyside project to exe
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+    - name: checkout code
+      uses: actions/checkout@v4
+
+    - name: setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-no-deps.txt --no-deps
+        pip install pyinstaller
+
+    - name: build exe
+      run: |
+        pyinstaller --onefile --windowed --name=fgis-arshin-desktop-client main.py
+
+    - name: verify exe file
+      run: |
+        $exePath = "dist/fgis-arshin-desktop-client.exe"
+        if (Test-Path $exePath) {
+            $fileInfo = Get-Item $exePath
+            Write-Host "✅ exe создан успешно"
+            Write-Host "📁 размер: $($fileInfo.Length / 1mb) mb"
+            Write-Host "📁 путь: $exePath"
+
+            try {
+                $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
+                Write-Host "📋 Версия: $($versionInfo.FileVersion)"
+            } catch {
+                Write-Host "ℹ️ информация о версии недоступна"
+            }
+        } else {
+            Write-Host "❌ ошибка: exe не найден"
+            Get-ChildItem -Recurse -Filter "*.exe" | Format-List
+            exit 1
+        }
+
+    - name: upload exe as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: fgis-arshin-desktop-client
+        path: |
+          dist/fgis-arshin-desktop-client.exe
+        if-no-files-found: error
+        retention-days: 7
+
+    - name: get latest tag
+      id: get_tag
+      run: |
+        git fetch --tags
+        $tagsString = git tag --list "v*" --sort=-version:refname
+        $tagsArray = $tagsString -split "`n"
+
+        if ($tagsArray.Length -gt 0 -and $tagsArray[0] -ne "") {
+          $latestTag = $tagsArray[0]
+          Write-Host "✅ тег найден: $latestTag"
+        
+        } else {
+          Write-Host "❌ ошибка: тег не найден"
+          exit 1
+        }
+        
+        "tag=$latestTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        Write-Host "📤 тег сохранен: tag=$latestTag"
+        
+        Write-Host "проверка сохранения:"
+        Get-Content $env:GITHUB_OUTPUT    
+
+    - name: create release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get_tag.outputs.tag }}
+        files: |
+          dist/fgis-arshin-desktop-client.exe
+          LICENSE.md
+        draft: false
+        prerelease: false
+        generate_release_notes: true

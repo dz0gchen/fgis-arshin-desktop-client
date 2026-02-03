@@ -1,0 +1,45 @@
+exclude: ^(app/ui/|\.venv/)
+
+repos:
+  - repo: local
+    hooks:
+      - id: isort
+        name: isort (local)
+        entry: isort
+        language: system
+        types: [ python ]
+        args: [ "--profile", "black" ]
+
+  - repo: local
+    hooks:
+      - id: black
+        name: black (local)
+        entry: black
+        language: system
+        types: [ python ]
+        args: ["--line-length=120"]
+
+  - repo: local
+    hooks:
+      - id: flake8
+        name: flake8 (local)
+        entry: flake8
+        language: system
+        types: [ python ]
+        args: ["--max-line-length=120", "--ignore=E266"]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (local)
+        entry: mypy
+        language: system
+        files: \.py$
+
+  - repo: local
+    hooks:
+      - id: commitizen
+        name: commitizen (local)
+        entry: cz check --commit-msg-file
+        language: system
+        stages: [ commit-msg ]
